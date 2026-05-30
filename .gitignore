@@ -1,0 +1,11 @@
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Secrets / local env
+.env
+.env.*
+
+# Build artifacts the generator writes next to its output
+*.debug.html
+cover-generated.*
