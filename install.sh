@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # pdfx installer — grabs everything the skill can use, in one shot.
-# Safe to re-run. System packages are best-effort (need a package manager + sudo);
-# Python packages always install into the chosen venv. Override the interpreter with
-#   PDFX_PY=/path/to/venv/bin/python ./install.sh
+# Safe to re-run.  Usage: ./install.sh [--lean]
+#   default : full toolkit (incl. camelot ~250MB and Mermaid CLI + Chromium ~1.7GB)
+#   --lean  : skip Chromium/Mermaid + camelot (both auto-install on first use anyway)
+# System packages are best-effort (need a package manager + sudo); Python packages go
+# into the chosen venv. Override the interpreter with PDFX_PY=/path/to/venv/bin/python.
 set -uo pipefail
+
+LEAN=0; [ "${1:-}" = "--lean" ] && LEAN=1
 
 # ---- pick a Python interpreter / venv -------------------------------------------------
 PY="${PDFX_PY:-}"
@@ -13,16 +17,20 @@ if [ -z "$PY" ]; then
   done
 fi
 echo "▶ Python: $PY"
+[ "$LEAN" = 1 ] && echo "  (lean: skipping Chromium/Mermaid + camelot — auto-installed on first use)"
 
-# ---- Python dependencies (always) -----------------------------------------------------
-echo "▶ Installing Python packages…"
+# ---- Python dependencies --------------------------------------------------------------
+echo "▶ Installing core Python packages…"
 "$PY" -m pip install -q --upgrade pip
 "$PY" -m pip install -q \
   weasyprint markdown pygments \
   pypdf pikepdf pymupdf pymupdf4llm pdfplumber reportlab img2pdf \
-  pytesseract pdf2image ocrmypdf camelot-py \
-  google-genai \
-  && echo "  ✓ Python packages OK" || echo "  ⚠ some Python packages failed (see above)"
+  pytesseract pdf2image ocrmypdf google-genai \
+  && echo "  ✓ core Python packages OK" || echo "  ⚠ some core packages failed (see above)"
+if [ "$LEAN" = 0 ]; then
+  echo "▶ camelot (borderless tables; pulls opencv/pandas ~250MB)…"
+  "$PY" -m pip install -q camelot-py && echo "  ✓ camelot OK" || echo "  ⚠ camelot failed"
+fi
 
 # ---- system tools (best-effort) -------------------------------------------------------
 SUDO=""; [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
@@ -41,8 +49,11 @@ else
 fi
 
 # ---- Mermaid CLI (optional, for ```mermaid diagrams) ----------------------------------
-if command -v npm >/dev/null 2>&1; then
-  echo "▶ Mermaid CLI (npm -g)…"; npm install -g @mermaid-js/mermaid-cli >/dev/null 2>&1 \
+if [ "$LEAN" = 1 ]; then
+  echo "▶ Mermaid CLI: skipped (lean). ```mermaid``` blocks use npx on first use"
+  echo "  (downloads Chromium ~1.7GB then). Inline <svg> needs nothing."
+elif command -v npm >/dev/null 2>&1; then
+  echo "▶ Mermaid CLI (npm -g; pulls Chromium ~1.7GB)…"; npm install -g @mermaid-js/mermaid-cli >/dev/null 2>&1 \
     && echo "  ✓ mmdc OK" || echo "  ⚠ mmdc install failed (mermaid still works via npx on first use)"
 else
   echo "  ⓘ no npm — mermaid diagrams use npx on first use (auto-downloads), or skip"
@@ -96,8 +107,9 @@ fi
 
 # ---- capability report ----------------------------------------------------------------
 echo ""; echo "▶ Capability check:"
-printf "  %-12s %s\n" "verapdf" "$([ -x "$VERAPDF_HOME/verapdf" ] && echo ✓ || command -v verapdf >/dev/null 2>&1 && echo ✓ || echo '— (PDF/A validation)')"
-for t in pdfinfo pdftoppm pdfimages pdffonts pdftohtml pdfdetach qpdf gs mutool img2pdf tesseract ocrmypdf mmdc java; do
+if [ -x "$VERAPDF_HOME/verapdf" ] || command -v verapdf >/dev/null 2>&1; then VP="✓"; else VP="— (PDF/A validation)"; fi
+printf "  %-12s %s\n" "verapdf" "$VP"
+for t in pdfinfo pdftoppm pdfimages pdffonts pdftohtml pdfdetach qpdf gs mutool img2pdf tesseract mmdc java; do
   printf "  %-12s %s\n" "$t" "$(command -v "$t" >/dev/null 2>&1 && echo ✓ || echo '— (optional/missing)')"
 done
 "$PY" - <<'PYEOF'
@@ -108,4 +120,7 @@ for m in mods:
     try: importlib.import_module(m); print(f"  {m:14} ✓")
     except Exception: print(f"  {m:14} — (missing)")
 PYEOF
-echo ""; echo "✅ pdfx install done. GEMINI_API_KEY (for AI cover + Gemini OCR) goes in ~/.claude/.env"
+echo ""
+echo "✅ pdfx install done. GEMINI_API_KEY (for AI cover + Gemini OCR) goes in ~/.claude/.env"
+echo "   Disk: skill code ~3MB · veraPDF ~33MB · Python deps ~250MB."
+[ "$LEAN" = 0 ] && echo "   + Mermaid Chromium ~1.7GB (full mode). Use --lean to skip it (mermaid then on-demand via npx)."
