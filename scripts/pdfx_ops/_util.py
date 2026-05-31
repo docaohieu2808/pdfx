@@ -1,6 +1,6 @@
-"""Shared helpers for pdfx_ops modules: dependency guard, page-range parsing,
-subprocess runner, tool discovery."""
-import sys, shutil, subprocess, pathlib
+"""Shared helpers for pdfx_ops modules: dependency guard, on-demand install,
+page-range parsing, subprocess runner, tool discovery."""
+import os, sys, shutil, subprocess, pathlib
 
 
 def need(mod):
@@ -10,7 +10,25 @@ def need(mod):
     except ModuleNotFoundError:
         sys.exit(f"Missing dependency '{mod}'. Install with the skills venv:\n"
                  "  pip install pypdf pikepdf pymupdf pdfplumber reportlab img2pdf "
-                 "pytesseract pdf2image weasyprint")
+                 "pytesseract pdf2image weasyprint  (or run pdfx/install.sh)")
+
+
+def ensure(import_name, pip_name=None):
+    """Import a Python package, auto pip-installing it into THIS venv on first use
+    (the 'use it → grab what's missing' model). Set PDFX_NO_AUTOINSTALL=1 to disable."""
+    try:
+        return __import__(import_name)
+    except ModuleNotFoundError:
+        pass
+    pkg = pip_name or import_name
+    if os.environ.get("PDFX_NO_AUTOINSTALL"):
+        sys.exit(f"Missing '{import_name}'. Run: pip install {pkg}  (or pdfx/install.sh)")
+    print(f"[pdfx] '{import_name}' missing — installing {pkg} into the venv…", file=sys.stderr)
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", pkg], check=False)
+    try:
+        return __import__(import_name)
+    except ModuleNotFoundError:
+        sys.exit(f"Could not auto-install {pkg}; install it manually or run pdfx/install.sh")
 
 
 def need_tool(name, apt=None):

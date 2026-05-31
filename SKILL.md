@@ -82,7 +82,7 @@ explicit `[[Term]]` markers, mapping each to its chapter number(s). Perfect for 
 | Command | Example |
 |---------|---------|
 | `extract-text` | `… extract-text in.pdf [--out t.txt] [--layout]` |
-| `extract-tables` | `… extract-tables in.pdf [--out t.csv]` |
+| `extract-tables` | `… extract-tables in.pdf [--out t.csv] [--engine camelot --flavor stream]` (camelot/stream = borderless tables) |
 | `extract-images` | `… extract-images in.pdf --out-dir DIR` (embedded rasters) |
 | `to-images` | `… to-images in.pdf --out-dir DIR [--dpi 150] [--fmt png|jpeg]` |
 | `to-html` | `… to-html in.pdf [--out o.html]` |
@@ -132,7 +132,7 @@ explicit `[[Term]]` markers, mapping each to its chapter number(s). Perfect for 
 | Command | Example |
 |---------|---------|
 | `ocr` | `… ocr scan.pdf --lang vie --engine auto [--out t.txt] [--dpi 300]` (extract text) |
-| `ocr-searchable` | `… ocr-searchable scan.pdf out.pdf --lang vie` (add selectable text layer) |
+| `ocr-searchable` | `… ocr-searchable scan.pdf out.pdf --lang vie [--force]` (selectable text layer) |
 
 `--engine auto` (default) uses **Gemini** (`gemini-2.5-flash`, needs `GEMINI_API_KEY`) for
 Vietnamese — far more reliable on real scans and preserves diacritics — else falls back to
@@ -142,7 +142,9 @@ Vietnamese — far more reliable on real scans and preserves diacritics — else
 on noisy docs). Avoid pro (slow, no gain) / `gemini-2.0*` (deprecated). See
 `references/gemini-ocr-model-comparison.md`. ⚠ Plain tesseract with the default `--lang eng` MANGLES Vietnamese diacritics
 ("Việt"→"Viet"); for Vietnamese always pass `--lang vie` (tesseract) or use `auto`/`gemini`.
-`ocr-searchable` is tesseract-only (an LLM can't position glyphs) — pass `--lang vie` for VN.
+`ocr-searchable` prefers **ocrmypdf** (deskew, clean, proper text layer, optimization) and
+falls back to a tesseract merge; pass `--lang vie` for VN, `--force` to re-OCR pages that
+already have text.
 
 ### Forms (separate scripts — run check first)
 `check_fillable_fields.py in.pdf` → `fill_fillable_fields.py in.pdf fields.json out.pdf`.
@@ -152,22 +154,22 @@ Non-fillable forms: `fill_pdf_form_with_annotations.py`. Inspect: `extract_form_
 ---
 
 ## Setup / install (self-contained — depends on NO other skill)
-1. **Copy the whole `pdfx/` folder** to any skills dir. Everything bundles: scripts, `pdfx_ops/`,
-   `pdfx_lib/`, references, `assets/fonts/`.
-2. **Set `PDFX`** + a `PY` venv (above).
-3. **Python deps:**
-   ```bash
-   pip install weasyprint markdown pygments pypdf pikepdf pymupdf pdfplumber \
-       reportlab img2pdf pytesseract pdf2image google-genai pymupdf4llm
-   ```
-   (`pymupdf4llm` optional but recommended — gives `to-markdown` real heading/table structure.)
-4. **System tools:** `qpdf`, `ghostscript` (compress/pdfa), `poppler-utils` (pdfinfo/pdftoppm/
-   pdfimages/pdffonts/pdftohtml/pdfdetach), `mupdf-tools` (repair), `img2pdf`, `tesseract-ocr`
-   (+ `tesseract-ocr-vie`), and WeasyPrint's Pango/cairo. Mermaid (optional): `node`/`npx`.
-5. **Optional** — AI covers: `GEMINI_API_KEY` in env or `$PDFX/.env` / `~/.claude/.env`. Without it
-   `--gen-cover` falls back to a gradient cover.
+**One shot — grab everything:** `bash "$PDFX/install.sh"` (re-runnable). It installs all Python
+packages into the chosen venv (set `PDFX_PY=…` to target one), plus system tools via apt/brew/dnf
+(poppler, qpdf, ghostscript, mupdf-tools, tesseract + Vietnamese, img2pdf, pango/cairo, pngquant/
+unpaper) and the Mermaid CLI via npm, then prints a capability report.
 
-Each capability degrades gracefully: a missing tool gives a clear hint, never a silent bad output.
+**Or piecemeal** — `pip install weasyprint markdown pygments pypdf pikepdf pymupdf pymupdf4llm
+pdfplumber reportlab img2pdf pytesseract pdf2image ocrmypdf camelot-py google-genai` + the system
+tools above. **Auto-install:** commands that need an optional Python package (`pymupdf4llm`,
+`ocrmypdf`, `camelot-py`) pip-install it into the venv on first use — set `PDFX_NO_AUTOINSTALL=1`
+to disable. Mermaid auto-downloads its renderer via `npx` on first use.
+
+**AI features** — set `GEMINI_API_KEY` in env or `$PDFX/.env` / `~/.claude/.env` for `--gen-cover`
+and Gemini OCR; without it `--gen-cover` uses a gradient cover and OCR uses tesseract.
+
+Every capability degrades gracefully: a missing tool gives a clear hint or falls back, never a
+silent bad output.
 
 ## Files
 - `scripts/build_ebook_from_markdown.py` — ebook generator (orchestrates `pdfx_lib/`).
@@ -179,6 +181,7 @@ Each capability degrades gracefully: a missing tool gives a clear hint, never a 
   convert.py · analyze.py · ocr_ops.py` (+ `_util.py`).
 - `scripts/{check_fillable_fields,fill_fillable_fields,fill_pdf_form_with_annotations,
   extract_form_field_info,check_bounding_boxes,convert_pdf_to_images,create_validation_image}.py` — forms.
+- `install.sh` — one-shot dependency installer (Python packages + system tools + Mermaid CLI).
 - `references/` — `weasyprint-recipes.md`, `pdf-manipulation-guide.md`, `forms.md`,
   `ocr-extraction-patterns.md`, `reference.md`. `assets/fonts/` — display fonts. `examples/` — smoke-test chapters.
 

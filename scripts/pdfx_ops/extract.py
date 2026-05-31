@@ -15,12 +15,19 @@ def cmd_extract_text(a):
 
 
 def cmd_extract_tables(a):
-    pdfplumber = _util.need("pdfplumber")
+    """pdfplumber (default; ruled tables) or camelot (--engine camelot --flavor stream
+    handles borderless tables)."""
     rows = []
-    with pdfplumber.open(a.input) as pdf:
-        for page in pdf.pages:
-            for t in page.extract_tables():
-                rows += t + [[]]
+    if a.engine == "camelot":
+        camelot = _util.ensure("camelot", "camelot-py")
+        for t in camelot.read_pdf(a.input, flavor=a.flavor, pages=a.pages or "all"):
+            rows += t.df.values.tolist() + [[]]
+    else:
+        pdfplumber = _util.need("pdfplumber")
+        with pdfplumber.open(a.input) as pdf:
+            for page in pdf.pages:
+                for t in page.extract_tables():
+                    rows += t + [[]]
     if a.out:
         with open(a.out, "w", newline="", encoding="utf-8") as fh:
             csv.writer(fh).writerows(rows)
@@ -58,9 +65,9 @@ def cmd_to_markdown(a):
     """Markdown via pymupdf4llm if present (best structure), else layout text."""
     out = a.out or str(pathlib.Path(a.input).with_suffix(".md"))
     try:
-        import pymupdf4llm
+        pymupdf4llm = _util.ensure("pymupdf4llm")
         md = pymupdf4llm.to_markdown(a.input)
-    except ModuleNotFoundError:
+    except SystemExit:  # auto-install unavailable (offline) — basic fitz text fallback
         fitz = _util.need("fitz")
         doc = fitz.open(a.input)
         md = "\n\n---\n\n".join(page.get_text("text") for page in doc)
@@ -116,8 +123,11 @@ def _emit(txt, out, label):
 def register(sub):
     sp = sub.add_parser("extract-text", help="extract text (—layout keeps columns)"); sp.set_defaults(fn=cmd_extract_text)
     sp.add_argument("input"); sp.add_argument("--out"); sp.add_argument("--layout", action="store_true")
-    sp = sub.add_parser("extract-tables", help="extract tables to CSV"); sp.set_defaults(fn=cmd_extract_tables)
+    sp = sub.add_parser("extract-tables", help="extract tables to CSV (pdfplumber/camelot)"); sp.set_defaults(fn=cmd_extract_tables)
     sp.add_argument("input"); sp.add_argument("--out")
+    sp.add_argument("--engine", default="pdfplumber", choices=["pdfplumber", "camelot"])
+    sp.add_argument("--flavor", default="stream", choices=["stream", "lattice"], help="camelot: stream=borderless, lattice=ruled")
+    sp.add_argument("--pages", help="camelot page range, e.g. '1,2' or '1-3' (default all)")
     sp = sub.add_parser("extract-images", help="extract embedded raster images"); sp.set_defaults(fn=cmd_extract_images)
     sp.add_argument("input"); sp.add_argument("--out-dir")
     sp = sub.add_parser("to-images", help="render pages to PNG/JPEG"); sp.set_defaults(fn=cmd_to_images)

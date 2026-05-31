@@ -69,14 +69,27 @@ def cmd_ocr(a):
 
 
 def cmd_ocr_searchable(a):
-    """Add an invisible OCR text layer (selectable/searchable). Tesseract only."""
-    _util.need("pytesseract"); _util.need("pdf2image"); _util.need("pypdf")
+    """Add an invisible OCR text layer (selectable/searchable). Prefers ocrmypdf
+    (deskew, clean, proper layering, optimization); falls back to tesseract merge."""
     _util.need_tool("tesseract", "tesseract-ocr")
+    if "vie" not in a.lang:
+        print("[ocr-searchable] lang=eng — for Vietnamese pass --lang vie.", file=sys.stderr)
+    try:
+        _util.ensure("ocrmypdf")
+        cmd = [sys.executable, "-m", "ocrmypdf", "-l", a.lang,
+               "--force-ocr" if a.force else "--skip-text", "--output-type", "pdf",
+               a.input, a.output]
+        import subprocess
+        subprocess.run(cmd, check=True)
+        print(f"searchable PDF via ocrmypdf ({a.lang}) -> {a.output}")
+        return
+    except Exception as exc:
+        print(f"[ocr-searchable] ocrmypdf path failed ({str(exc)[:80]}); using tesseract merge.",
+              file=sys.stderr)
+    _util.need("pytesseract"); _util.need("pdf2image"); _util.need("pypdf")
     import pytesseract
     from pdf2image import convert_from_path
     import pypdf
-    if "vie" not in a.lang:
-        print("[ocr-searchable] lang=eng — for Vietnamese pass --lang vie.", file=sys.stderr)
     pages = convert_from_path(a.input, dpi=a.dpi)
     writer = pypdf.PdfWriter()
     for im in pages:
@@ -85,7 +98,7 @@ def cmd_ocr_searchable(a):
             writer.add_page(pg)
     with open(a.output, "wb") as fh:
         writer.write(fh)
-    print(f"searchable PDF ({a.lang}) -> {a.output} ({len(pages)} pages)")
+    print(f"searchable PDF via tesseract ({a.lang}) -> {a.output} ({len(pages)} pages)")
 
 
 def register(sub):
@@ -95,7 +108,8 @@ def register(sub):
     sp.add_argument("--dpi", type=int, default=300)
     sp.add_argument("--engine", default="auto", choices=["auto", "tesseract", "gemini"])
     sp.add_argument("--model", default="gemini-2.5-flash", help="Gemini vision model")
-    sp = sub.add_parser("ocr-searchable", help="add a searchable text layer (tesseract)")
+    sp = sub.add_parser("ocr-searchable", help="add a searchable text layer (ocrmypdf/tesseract)")
     sp.set_defaults(fn=cmd_ocr_searchable)
     sp.add_argument("input"); sp.add_argument("output"); sp.add_argument("--lang", default="eng")
     sp.add_argument("--dpi", type=int, default=300)
+    sp.add_argument("--force", action="store_true", help="re-OCR pages that already have text")
