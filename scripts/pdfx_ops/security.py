@@ -42,12 +42,22 @@ def cmd_unlock(a):
 
 
 def cmd_redact(a):
-    """Permanently remove content. --text redacts every match; --rects 'p:x0,y0,x1,y1'
-    redacts boxes (page is 1-based). Redacted areas are filled black and text removed."""
+    """Permanently remove content. --text redacts every match (--ignore-case / --regex
+    widen matching, word-level); --rects 'p:x0,y0,x1,y1' redacts boxes (page 1-based).
+    Redacted areas are filled black and the underlying text removed."""
+    import re
     fitz = _util.need("fitz")
     doc = fitz.open(a.input)
     hits = 0
-    if a.text:
+    if a.text and (a.regex or a.ignore_case):
+        pat = re.compile(a.text if a.regex else re.escape(a.text),
+                         re.IGNORECASE if a.ignore_case else 0)
+        for page in doc:
+            for w in page.get_text("words"):  # (x0,y0,x1,y1,word,...)
+                if pat.search(w[4]):
+                    page.add_redact_annot(fitz.Rect(w[:4]), fill=(0, 0, 0))
+                    hits += 1
+    elif a.text:  # exact phrase (handles multi-word spans)
         for page in doc:
             for rect in page.search_for(a.text):
                 page.add_redact_annot(rect, fill=(0, 0, 0))
@@ -90,5 +100,6 @@ def register(sub):
     sp.add_argument("input"); sp.add_argument("output"); sp.add_argument("--password")
     sp = sub.add_parser("redact", help="permanently remove text/areas"); sp.set_defaults(fn=cmd_redact)
     sp.add_argument("input"); sp.add_argument("output"); sp.add_argument("--text"); sp.add_argument("--rects", nargs="*")
+    sp.add_argument("--ignore-case", action="store_true"); sp.add_argument("--regex", action="store_true")
     sp = sub.add_parser("permissions", help="inspect encryption + permission flags"); sp.set_defaults(fn=cmd_permissions)
     sp.add_argument("input"); sp.add_argument("--password")

@@ -26,6 +26,32 @@ def cmd_info(a):
 
 
 def cmd_compare(a):
+    if a.mode == "text":
+        return _compare_text(a)
+    return _compare_visual(a)
+
+
+def _compare_text(a):
+    """Unified text diff of the two PDFs (content, not pixels)."""
+    import subprocess, difflib
+
+    def text(p):
+        if shutil.which("pdftotext"):
+            return subprocess.run(["pdftotext", "-layout", p, "-"], capture_output=True, text=True).stdout
+        pypdf = _util.need("pypdf")
+        return "\n".join(pg.extract_text() or "" for pg in pypdf.PdfReader(p).pages)
+
+    diff = list(difflib.unified_diff(text(a.a).splitlines(), text(a.b).splitlines(),
+                                     fromfile=a.a, tofile=a.b, lineterm=""))
+    if not diff:
+        print("-- text is identical")
+        return
+    print("\n".join(diff[:400]))
+    if len(diff) > 400:
+        print(f"… (+{len(diff) - 400} more diff lines)")
+
+
+def _compare_visual(a):
     """Render both PDFs and report per-page visual differences (PIL pixel diff)."""
     _util.need_tool("pdftoppm", "poppler-utils")
     Image = _util.need("PIL")
@@ -63,5 +89,6 @@ def cmd_compare(a):
 def register(sub):
     sp = sub.add_parser("info", help="page count, size, metadata, encryption"); sp.set_defaults(fn=cmd_info)
     sp.add_argument("input"); sp.add_argument("--password")
-    sp = sub.add_parser("compare", help="visual page-by-page diff of two PDFs"); sp.set_defaults(fn=cmd_compare)
-    sp.add_argument("a"); sp.add_argument("b"); sp.add_argument("--out-dir", default="pdf-diff"); sp.add_argument("--dpi", type=int, default=100)
+    sp = sub.add_parser("compare", help="diff two PDFs (visual pixels or text)"); sp.set_defaults(fn=cmd_compare)
+    sp.add_argument("a"); sp.add_argument("b"); sp.add_argument("--out-dir", default="pdf-diff")
+    sp.add_argument("--dpi", type=int, default=100); sp.add_argument("--mode", default="visual", choices=["visual", "text"])

@@ -1,99 +1,62 @@
 import argparse
 import json
+import pathlib
 
 
-# Fills a PDF by adding text annotations defined in `fields.json`. See forms.md.
+# Fills a non-fillable PDF by stamping text into entry boxes defined in `fields.json`
+# (see forms.md). Text is drawn as real page content with a bundled Unicode TTF font
+# (EB Garamond) so Vietnamese diacritics survive and the result is selectable/searchable
+# and renders in every viewer — unlike pypdf FreeText annotations, which use a base-14
+# WinAnsi font that drops Vietnamese diacritics and rely on viewer-side rendering.
+
+FONT_FILE = pathlib.Path(__file__).resolve().parent.parent / "assets" / "fonts" / "EBGaramond.ttf"
 
 
-def transform_coordinates(bbox, image_width, image_height, pdf_width, pdf_height):
-    """Transform bounding box from image coordinates to PDF coordinates"""
-    # Image coordinates: origin at top-left, y increases downward
-    # PDF coordinates: origin at bottom-left, y increases upward
-    x_scale = pdf_width / image_width
-    y_scale = pdf_height / image_height
-    
-    left = bbox[0] * x_scale
-    right = bbox[2] * x_scale
-    
-    # Flip Y coordinates for PDF
-    top = pdf_height - (bbox[1] * y_scale)
-    bottom = pdf_height - (bbox[3] * y_scale)
-    
-    return left, bottom, right, top
+def _hex_color(s):
+    s = (s or "000000").lstrip("#")
+    return tuple(int(s[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+def _entry_rect(bbox, image_width, image_height, pdf_width, pdf_height):
+    """image coords [left, top, right, bottom] (origin top-left) -> PDF/fitz rect.
+    fitz also uses a top-left origin, so only scale — no Y flip."""
+    xs, ys = pdf_width / image_width, pdf_height / image_height
+    return [bbox[0] * xs, bbox[1] * ys, bbox[2] * xs, bbox[3] * ys]
 
 
 def fill_pdf_form(input_pdf_path, fields_json_path, output_pdf_path):
-    """Fill the PDF form with data from fields.json"""
-    from pypdf import PdfReader, PdfWriter
-    from pypdf.annotations import FreeText
-    
-    # `fields.json` format described in forms.md.
+    import fitz  # PyMuPDF
+
     with open(fields_json_path, "r") as f:
         fields_data = json.load(f)
-    
-    # Open the PDF
-    reader = PdfReader(input_pdf_path)
-    writer = PdfWriter()
-    
-    # Copy all pages to writer
-    writer.append(reader)
-    
-    # Get PDF dimensions for each page
-    pdf_dimensions = {}
-    for i, page in enumerate(reader.pages):
-        mediabox = page.mediabox
-        pdf_dimensions[i + 1] = [mediabox.width, mediabox.height]
-    
-    # Process each form field
-    annotations = []
+    doc = fitz.open(input_pdf_path)
+    fontfile = str(FONT_FILE) if FONT_FILE.is_file() else None
+
+    stamped = 0
     for field in fields_data["form_fields"]:
-        page_num = field["page_number"]
-        
-        # Get page dimensions and transform coordinates.
-        page_info = next(p for p in fields_data["pages"] if p["page_number"] == page_num)
-        image_width = page_info["image_width"]
-        image_height = page_info["image_height"]
-        pdf_width, pdf_height = pdf_dimensions[page_num]
-        
-        transformed_entry_box = transform_coordinates(
-            field["entry_bounding_box"],
-            image_width, image_height,
-            pdf_width, pdf_height
-        )
-        
-        # Skip empty fields
-        if "entry_text" not in field or "text" not in field["entry_text"]:
-            continue
-        entry_text = field["entry_text"]
-        text = entry_text["text"]
+        entry = field.get("entry_text") or {}
+        text = entry.get("text")
         if not text:
             continue
-        
-        font_name = entry_text.get("font", "Arial")
-        font_size = str(entry_text.get("font_size", 14)) + "pt"
-        font_color = entry_text.get("font_color", "000000")
+        page_num = field["page_number"]
+        page = doc[page_num - 1]
+        info = next(p for p in fields_data["pages"] if p["page_number"] == page_num)
+        rect = _entry_rect(field["entry_bounding_box"], info["image_width"],
+                           info["image_height"], page.rect.width, page.rect.height)
+        size = float(entry.get("font_size", 14))
+        color = _hex_color(entry.get("font_color"))
+        # Try to fit the text in the box, shrinking if needed (insert_textbox returns
+        # a negative remainder when it overflows).
+        for fs in (size, size * 0.85, size * 0.7):
+            rc = page.insert_textbox(fitz.Rect(*rect), text, fontsize=fs, color=color,
+                                     fontname="vnfont", fontfile=fontfile, align=0)
+            if rc >= 0:
+                break
+        stamped += 1
 
-        # Font size/color seems to not work reliably across viewers:
-        # https://github.com/py-pdf/pypdf/issues/2084
-        annotation = FreeText(
-            text=text,
-            rect=transformed_entry_box,
-            font=font_name,
-            font_size=font_size,
-            font_color=font_color,
-            border_color=None,
-            background_color=None,
-        )
-        annotations.append(annotation)
-        # page_number is 0-based for pypdf
-        writer.add_annotation(page_number=page_num - 1, annotation=annotation)
-        
-    # Save the filled PDF
-    with open(output_pdf_path, "wb") as output:
-        writer.write(output)
-    
+    doc.save(output_pdf_path, garbage=3, deflate=True)
     print(f"Successfully filled PDF form and saved to {output_pdf_path}")
-    print(f"Added {len(annotations)} text annotations")
+    print(f"Stamped {stamped} text field(s) with a Unicode font (Vietnamese-safe)")
 
 
 if __name__ == "__main__":

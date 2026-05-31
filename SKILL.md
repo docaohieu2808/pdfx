@@ -97,7 +97,7 @@ explicit `[[Term]]` markers, mapping each to its chapter number(s). Perfect for 
 |---------|---------|
 | `encrypt` / `decrypt` | `… encrypt in.pdf out.pdf --password PW [--owner PW]` |
 | `unlock` | `… unlock in.pdf out.pdf [--password PW]` (strip print/copy restrictions, qpdf) |
-| `redact` | `… redact in.pdf out.pdf --text "SECRET"` or `--rects "1:x0,y0,x1,y1"` (true removal) |
+| `redact` | `… redact in.pdf out.pdf --text "SECRET" [--ignore-case] [--regex]` or `--rects "1:x0,y0,x1,y1"` (true removal) |
 | `permissions` | `… permissions in.pdf [--password PW]` (inspect flags) |
 
 ### Optimize
@@ -126,7 +126,7 @@ explicit `[[Term]]` markers, mapping each to its chapter number(s). Perfect for 
 | Command | Example |
 |---------|---------|
 | `info` | `… info in.pdf [--password PW]` (pages, size, fonts, metadata, encryption) |
-| `compare` | `… compare a.pdf b.pdf [--out-dir DIR] [--dpi 100]` (page-by-page visual diff) |
+| `compare` | `… compare a.pdf b.pdf [--mode visual|text] [--out-dir DIR]` (pixel diff or text diff) |
 
 ### OCR (scanned PDFs) — two engines
 | Command | Example |
@@ -158,8 +158,9 @@ Non-fillable forms: `fill_pdf_form_with_annotations.py`. Inspect: `extract_form_
 3. **Python deps:**
    ```bash
    pip install weasyprint markdown pygments pypdf pikepdf pymupdf pdfplumber \
-       reportlab img2pdf pytesseract pdf2image google-genai
+       reportlab img2pdf pytesseract pdf2image google-genai pymupdf4llm
    ```
+   (`pymupdf4llm` optional but recommended — gives `to-markdown` real heading/table structure.)
 4. **System tools:** `qpdf`, `ghostscript` (compress/pdfa), `poppler-utils` (pdfinfo/pdftoppm/
    pdfimages/pdffonts/pdftohtml/pdfdetach), `mupdf-tools` (repair), `img2pdf`, `tesseract-ocr`
    (+ `tesseract-ocr-vie`), and WeasyPrint's Pango/cairo. Mermaid (optional): `node`/`npx`.

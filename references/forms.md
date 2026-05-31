@@ -202,4 +202,5 @@ If there are errors, reanalyze the relevant fields, adjust the bounding boxes, a
 
 ### Step 4: Add annotations to the PDF
 Run this script from the skill root (the pdfx/ folder) to create a filled-out PDF using the information in fields.json:
-`python scripts/fill_pdf_form_with_annotations.py <input_pdf_path> <path_to_fields.json> <output_pdf_path>
+`python scripts/fill_pdf_form_with_annotations.py <input_pdf_path> <path_to_fields.json> <output_pdf_path>`
+Text is stamped as real page content with a bundled Unicode TTF font, so it is selectable/searchable and **Vietnamese diacritics are preserved** (renders in every viewer).
