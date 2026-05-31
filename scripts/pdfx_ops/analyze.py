@@ -86,9 +86,35 @@ def _compare_visual(a):
               else "-- documents are visually identical")
 
 
+def cmd_validate(a):
+    """Validate a PDF against PDF/A with veraPDF (exit 1 if non-compliant)."""
+    import re
+    vp = _util.verapdf_path()
+    if not vp:
+        _util.sys.exit("veraPDF not found — run pdfx/install.sh (installs to ~/.local/share/verapdf).")
+    ok, summary = _util.verapdf_validate(a.input, a.flavour)
+    print(f"PDF/A-{a.flavour}: {'PASS ✅' if ok else 'FAIL ❌'}  — {summary}")
+    if not ok and a.details:
+        r = subprocess.run([vp, "-f", a.flavour, a.input], capture_output=True, text=True)
+        fails = []
+        for chunk in r.stdout.split("<rule"):
+            if 'status="failed"' in chunk:
+                cl = re.search(r'clause="([^"]+)"', chunk)
+                tn = re.search(r'testNumber="([^"]+)"', chunk)
+                if cl:
+                    fails.append(f'{cl.group(1)}#{tn.group(1) if tn else "?"}')
+        for f in list(dict.fromkeys(fails))[:12]:
+            print(f"  failed clause {f}")
+    if not ok:
+        _util.sys.exit(1)
+
+
 def register(sub):
     sp = sub.add_parser("info", help="page count, size, metadata, encryption"); sp.set_defaults(fn=cmd_info)
     sp.add_argument("input"); sp.add_argument("--password")
     sp = sub.add_parser("compare", help="diff two PDFs (visual pixels or text)"); sp.set_defaults(fn=cmd_compare)
     sp.add_argument("a"); sp.add_argument("b"); sp.add_argument("--out-dir", default="pdf-diff")
     sp.add_argument("--dpi", type=int, default=100); sp.add_argument("--mode", default="visual", choices=["visual", "text"])
+    sp = sub.add_parser("validate", help="validate PDF/A conformance with veraPDF"); sp.set_defaults(fn=cmd_validate)
+    sp.add_argument("input"); sp.add_argument("--flavour", default="2b", help="PDF/A flavour: 1b,2b,3b,2u,…")
+    sp.add_argument("--details", action="store_true", help="list failed clauses on FAIL")

@@ -48,9 +48,56 @@ else
   echo "  ⓘ no npm — mermaid diagrams use npx on first use (auto-downloads), or skip"
 fi
 
+# ---- veraPDF (PDF/A validator) --------------------------------------------------------
+VERAPDF_HOME="$HOME/.local/share/verapdf"
+if [ -x "$VERAPDF_HOME/verapdf" ]; then
+  echo "▶ veraPDF already installed ($VERAPDF_HOME)"
+else
+  if ! command -v java >/dev/null 2>&1; then
+    echo "▶ Installing Java (veraPDF needs a JRE)…"
+    if   command -v apt-get >/dev/null 2>&1; then $SUDO apt-get install -y -qq default-jre-headless || true
+    elif command -v brew    >/dev/null 2>&1; then brew install openjdk || true
+    elif command -v dnf     >/dev/null 2>&1; then $SUDO dnf install -y -q java-latest-openjdk-headless || true
+    fi
+  fi
+  if command -v java >/dev/null 2>&1 && command -v unzip >/dev/null 2>&1; then
+    echo "▶ Installing veraPDF → $VERAPDF_HOME …"
+    TMP=$(mktemp -d)
+    if curl -fsSL -o "$TMP/v.zip" https://software.verapdf.org/releases/verapdf-installer.zip \
+       && unzip -q "$TMP/v.zip" -d "$TMP"; then
+      DIR=$(ls -d "$TMP"/verapdf-greenfield-*/ | head -1)
+      cat > "$TMP/auto.xml" <<XML
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<AutomatedInstallation langpack="eng">
+    <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/>
+    <com.izforge.izpack.panels.target.TargetPanel id="install_dir"><installpath>$VERAPDF_HOME</installpath></com.izforge.izpack.panels.target.TargetPanel>
+    <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select">
+        <pack index="0" name="veraPDF GUI" selected="true"/>
+        <pack index="1" name="veraPDF Validation model" selected="true"/>
+        <pack index="2" name="veraPDF Documentation" selected="false"/>
+        <pack index="3" name="veraPDF Sample Plugins" selected="false"/>
+        <pack index="4" name="veraPDF Mac and *nix Startup Scripts" selected="true"/>
+    </com.izforge.izpack.panels.packs.PacksPanel>
+    <com.izforge.izpack.panels.install.InstallPanel id="install"/>
+    <com.izforge.izpack.panels.finish.SimpleFinishPanel id="finish"/>
+</AutomatedInstallation>
+XML
+      bash "${DIR}verapdf-install" "$TMP/auto.xml" >/dev/null 2>&1 \
+        && echo "  ✓ veraPDF OK ($("$VERAPDF_HOME/verapdf" --version 2>/dev/null | head -1))" \
+        || echo "  ⚠ veraPDF install failed"
+    else
+      echo "  ⚠ veraPDF download/unzip failed"
+    fi
+    rm -rf "$TMP"
+  else
+    echo "  ⚠ veraPDF needs java + unzip — skipped (PDF/A generation still works; only --validate needs it)"
+  fi
+fi
+
 # ---- capability report ----------------------------------------------------------------
 echo ""; echo "▶ Capability check:"
-for t in pdfinfo pdftoppm pdfimages pdffonts pdftohtml pdfdetach qpdf gs mutool img2pdf tesseract ocrmypdf mmdc; do
+printf "  %-12s %s\n" "verapdf" "$([ -x "$VERAPDF_HOME/verapdf" ] && echo ✓ || command -v verapdf >/dev/null 2>&1 && echo ✓ || echo '— (PDF/A validation)')"
+for t in pdfinfo pdftoppm pdfimages pdffonts pdftohtml pdfdetach qpdf gs mutool img2pdf tesseract ocrmypdf mmdc java; do
   printf "  %-12s %s\n" "$t" "$(command -v "$t" >/dev/null 2>&1 && echo ✓ || echo '— (optional/missing)')"
 done
 "$PY" - <<'PYEOF'

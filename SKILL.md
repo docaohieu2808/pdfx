@@ -105,7 +105,7 @@ explicit `[[Term]]` markers, mapping each to its chapter number(s). Perfect for 
 |---------|---------|
 | `compress` | `… compress in.pdf out.pdf --quality screen|ebook|printer|prepress` |
 | `linearize` | `… linearize in.pdf out.pdf` (fast web view) |
-| `pdfa` | `… pdfa in.pdf out.pdf` (archival PDF/A-2b) |
+| `pdfa` | `… pdfa in.pdf out.pdf [--validate]` (archival PDF/A-2b w/ sRGB OutputIntent; veraPDF-valid) |
 | `repair` | `… repair in.pdf out.pdf` (rebuild broken/bloated) |
 
 ### Annotate / info
@@ -127,6 +127,7 @@ explicit `[[Term]]` markers, mapping each to its chapter number(s). Perfect for 
 |---------|---------|
 | `info` | `… info in.pdf [--password PW]` (pages, size, fonts, metadata, encryption) |
 | `compare` | `… compare a.pdf b.pdf [--mode visual|text] [--out-dir DIR]` (pixel diff or text diff) |
+| `validate` | `… validate in.pdf [--flavour 2b] [--details]` (PDF/A conformance via veraPDF; exit 1 on FAIL) |
 
 ### OCR (scanned PDFs) — two engines
 | Command | Example |
@@ -157,7 +158,8 @@ Non-fillable forms: `fill_pdf_form_with_annotations.py`. Inspect: `extract_form_
 **One shot — grab everything:** `bash "$PDFX/install.sh"` (re-runnable). It installs all Python
 packages into the chosen venv (set `PDFX_PY=…` to target one), plus system tools via apt/brew/dnf
 (poppler, qpdf, ghostscript, mupdf-tools, tesseract + Vietnamese, img2pdf, pango/cairo, pngquant/
-unpaper) and the Mermaid CLI via npm, then prints a capability report.
+unpaper), the Mermaid CLI via npm, and **veraPDF** (PDF/A validator, into `~/.local/share/verapdf`,
+needs a JRE), then prints a capability report.
 
 **Or piecemeal** — `pip install weasyprint markdown pygments pypdf pikepdf pymupdf pymupdf4llm
 pdfplumber reportlab img2pdf pytesseract pdf2image ocrmypdf camelot-py google-genai` + the system

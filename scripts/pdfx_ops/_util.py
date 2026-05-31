@@ -91,6 +91,31 @@ def parse_groups(spec, n):
     return groups
 
 
+def verapdf_path():
+    """Locate the veraPDF CLI (PATH, ~/.local/share/verapdf, /opt/verapdf)."""
+    p = shutil.which("verapdf")
+    if p:
+        return p
+    for c in (pathlib.Path.home() / ".local/share/verapdf" / "verapdf",
+              pathlib.Path("/opt/verapdf/verapdf")):
+        if c.is_file():
+            return str(c)
+    return None
+
+
+def verapdf_validate(path, flavour="2b"):
+    """Validate against PDF/A. Returns (compliant: bool|None, one-line summary).
+    None means veraPDF is not installed."""
+    vp = verapdf_path()
+    if not vp:
+        return None, "veraPDF not installed — run pdfx/install.sh"
+    r = subprocess.run([vp, "-f", flavour, "--format", "text", path],
+                       capture_output=True, text=True)
+    out = (r.stdout or r.stderr).strip().splitlines()
+    line = out[0] if out else ""
+    return line.startswith("PASS"), line
+
+
 def out_dir(path):
     d = pathlib.Path(path or ".")
     d.mkdir(parents=True, exist_ok=True)
