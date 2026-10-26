@@ -8,6 +8,8 @@ it also *produces* publication-quality PDFs from Markdown.
 > works — bundled fonts, modular CLI scripts, reference guides. Depends on **no other skill**.
 > Optional heavy engines auto-install on first use (or run `install.sh`).
 
+![Four pages of a sample book built by pdfx from examples/: cover, contents, a chapter with a table and code, a chapter with SVG and Mermaid diagrams](docs/sample-pages.webp)
+
 ## A. Generate beautiful PDFs / ebooks (Markdown → PDF)
 `Markdown → HTML (python-markdown + Pygments) → WeasyPrint → PDF` with published-grade print CSS:
 
@@ -98,3 +100,7 @@ $PY "$PDFX/scripts/pdf_process.py" pdfa /tmp/pdfx.pdf /tmp/pdfx-a.pdf --validate
 ---
 **Author:** hieudc · **License:** MIT (skill code). Bundled fonts are under SIL OFL-1.1 — see
 [`assets/fonts/OFL.txt`](assets/fonts/OFL.txt).
+
+## License
+
+MIT, see [LICENSE](LICENSE). The bundled fonts in assets/fonts/ are not covered by the MIT license. They are licensed under the SIL Open Font License, Version 1.1 — see assets/fonts/OFL.txt for the full text and attribution.
