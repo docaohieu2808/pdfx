@@ -109,4 +109,6 @@ ul,ol{{margin:.3em 0 .8em;padding-left:5mm}} li{{margin:.15em 0}} img{{max-width
 .ix-letter{{font-family:'Inter';font-weight:800;font-size:12pt;color:{accent};margin:3mm 0 1mm;break-after:avoid}}
 .ix-list{{list-style:none;margin:0 0 3mm;padding:0;font-size:9pt}} .ix-list li{{margin:.6mm 0}}
 .ix-ref{{color:{muted};font-family:'JetBrains Mono';font-size:8pt;float:right}}
+.ix-ref a{{color:inherit;text-decoration:none}}
+.ix-ref a::after{{content:target-counter(attr(href),page)}}
 """

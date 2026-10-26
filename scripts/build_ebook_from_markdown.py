@@ -95,11 +95,14 @@ def main():
         if i in parts:
             chapters_html.append(ti.part_divider_html(parts[i], i))
         section, title, subs = mr.render_chapter(md, p, i, ids[p], assets, args.toc_depth)
+        if args.index:
+            section, anchors = ti.anchor_terms(section, ti.extract_terms(p.read_text(encoding="utf-8")), i)
+            for term, aid in anchors.items():
+                term_map.setdefault(term, []).append(aid)
+        else:
+            section = ti.strip_markers(section)
         chapters_html.append(section)
         chapters_info.append((i, title, ids[p], subs))
-        if args.index:
-            for term in ti.extract_terms(p.read_text(encoding="utf-8")):
-                term_map.setdefault(term, set()).add(i)
 
     toc_rows = ti.build_toc(chapters_info, parts, args.toc_depth)
     index_html = ti.build_index(term_map) if args.index else ""

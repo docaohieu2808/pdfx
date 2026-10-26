@@ -37,13 +37,41 @@ def extract_terms(raw_md):
     return terms
 
 
+def _slug(t):
+    return re.sub(r"[^a-z0-9]+", "-", _sortkey(t)).strip("-") or str(abs(hash(t)))
+
+
+def anchor_terms(section_html, terms, chapter):
+    """Give the first occurrence of each index term in a chapter an id, so the index can print the page it is on.
+    A [[term]] marker wins over a bold table cell; every marker is then shown as plain text.
+    Returns (html, {term: anchor_id})."""
+    found = {}
+    for t in sorted(terms, key=_sortkey):
+        aid = f"ix-{chapter}-{_slug(t)}"
+        esc = html.escape(t, quote=False)
+        marker, bold = f"[[{esc}]]", f"<strong>{esc}</strong>"
+        if marker in section_html:
+            section_html = section_html.replace(marker, f'<span id="{aid}">{esc}</span>', 1)
+        elif bold in section_html:
+            section_html = section_html.replace(bold, f'<strong id="{aid}">{esc}</strong>', 1)
+        else:
+            continue
+        found[t] = aid
+    return strip_markers(section_html), found
+
+
+def strip_markers(section_html):
+    """[[term]] only marks a term for the index; the reader sees the term itself."""
+    return INLINE_TERM.sub(lambda m: m.group(1), section_html)
+
+
 def _sortkey(t):
     ascii_ = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode().lower()
     return ascii_ or t.lower()
 
 
 def build_index(term_map):
-    """term_map: {term: set(chapter_numbers)} -> A-Z grouped HTML index section."""
+    """term_map: {term: [anchor ids]} -> A-Z grouped HTML index section; each anchor prints its page number."""
     if not term_map:
         return ""
     groups = {}
@@ -56,7 +84,7 @@ def build_index(term_map):
     for letter in sorted(groups):
         items = "".join(
             f'<li>{html.escape(t)} <span class="ix-ref">'
-            f'{", ".join(str(n) for n in sorted(term_map[t]))}</span></li>'
+            f'{", ".join(f'<a href="#{a}"></a>' for a in term_map[t])}</span></li>'
             for t in groups[letter])
         blocks.append(f'<h3 class="ix-letter">{letter}</h3><ul class="ix-list">{items}</ul>')
     return ('<section class="index-page" id="index"><h1 class="ix-title">Index</h1>'
